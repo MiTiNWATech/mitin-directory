@@ -1,0 +1,68 @@
+name: Refresh MiTiN directory roster
+
+# 6:00 Central each morning (11:00 UTC), plus a "Run workflow" button
+# on the Actions tab for when you've just added a member and don't
+# want to wait.
+on:
+  schedule:
+    - cron: "0 11 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build the roster from Wild Apricot
+        env:
+          WA_API_KEY: ${{ secrets.WA_API_KEY }}
+        run: python3 refresh_roster.py -o docs/roster.js
+
+      - name: Commit only if the member data actually changed
+        run: |
+          set -euo pipefail
+          git config user.name  "roster-bot"
+          git config user.email "roster-bot@users.noreply.github.com"
+
+          # Every run rewrites the "generated" timestamp, so compare the files
+          # with that line and that JSON key removed. Without this the workflow
+          # would push an empty commit every single day and the history would
+          # be useless for seeing when the membership actually changed.
+          strip() { sed -e 's/"generated":"[^"]*",//' -e '/^\/\* MiTiN directory roster/d' "$1"; }
+
+          CHANGED=yes
+          if git show HEAD:docs/roster.js > /tmp/previous.js 2>/dev/null; then
+            if diff -q <(strip /tmp/previous.js) <(strip docs/roster.js) > /dev/null; then
+              CHANGED=no
+            fi
+          fi
+
+          # GitHub disables scheduled workflows in public repositories after 60
+          # days with no repository activity. If the membership happens not to
+          # change for two months this job would be switched off without anyone
+          # noticing, so commit a timestamp-only update once we pass 50 days.
+          LAST=$(git log -1 --format=%ct 2>/dev/null || echo 0)
+          if [ "$LAST" = "0" ]; then AGE_DAYS=0; else AGE_DAYS=$(( ( $(date +%s) - LAST ) / 86400 )); fi
+          echo "Data changed: $CHANGED. Days since last commit: $AGE_DAYS."
+
+          if [ "$CHANGED" = "no" ] && [ "$AGE_DAYS" -lt 50 ]; then
+            echo "Roster unchanged and the schedule is in no danger. Nothing to commit."
+            exit 0
+          fi
+
+          git add docs/roster.js
+          if [ "$CHANGED" = "yes" ]; then
+            git commit -m "Refresh roster from Wild Apricot"
+          else
+            git commit -m "Keepalive: no membership changes in $AGE_DAYS days"
+          fi
+          git push
+          echo "Pushed."
