@@ -1,11 +1,18 @@
 name: Refresh MiTiN directory roster
 
-# 6:00 Central each morning (11:00 UTC), plus a "Run workflow" button
-# on the Actions tab for when you've just added a member and don't
-# want to wait.
+# Hourly, at 23 minutes past. The odd minute is deliberate: GitHub warns
+# that scheduled runs are delayed under load and that the top of the hour
+# is its busiest moment, so anything on :00 queues behind everyone else.
+#
+# Runs are free on public repositories, so hourly costs no more than daily.
+# They are still best-effort — GitHub can delay or drop them under load —
+# so promise "usually within the hour", not "within the hour".
+#
+# workflow_dispatch adds the "Run workflow" button on the Actions tab, for
+# when a member has just been added and nobody wants to wait.
 on:
   schedule:
-    - cron: "0 11 * * *"
+    - cron: "23 * * * *"
   workflow_dispatch:
 
 permissions:
