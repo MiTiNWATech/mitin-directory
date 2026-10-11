@@ -15,9 +15,13 @@ jobs:
   refresh:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # Pinned to major versions that run on Node 24. Older majors (checkout@v4,
+      # setup-python@v5) still work but GitHub warns that it is propping them up,
+      # and eventually it will stop. If a future run warns about this again, the
+      # fix is to raise these two numbers.
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
